@@ -2,3 +2,8 @@ cpemdb/
 Fuzzy_Wuzzy/
 .DS_Store
 .idea 
+cpe.json
+resultado.csv
+vendor.csv
+.~lock.product.csv#
+product.csv
