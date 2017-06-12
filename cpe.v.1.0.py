@@ -18,7 +18,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--cpe', "-c", type=str, help='a dictionary downloaded')
 parser.add_argument('--createJSON', "-j", action='store_true', help='Create a file only')
 parser.add_argument('--loadJSON', "-l", action='store_true', help='Read a file')
-
+parser.add_argument('--listVENDOR', "-n", action='store_true', help='Show distinct vendor field')
+parser.add_argument('--listPRODUCT', "-p", action='store_true', help='Show distinct product field')
 parser.add_argument('--verbose', "-v", action='store_true', help='Verbose')
 
 args = parser.parse_args()
@@ -74,7 +75,6 @@ def insertCPEDATA ( src, fcpe ):
         cont += 1
         timer.update(cont)
         cpeddbb.CPE.insert(i)
-        # cpeddbb.CPE.insert_many([i for i in ALLDATA]).inserted_ids
     timer.finish()
 #---------------------------------------------------
 def insertLOADCPE ( src, fcpe ):
@@ -96,6 +96,21 @@ def createJSONCPE ( fcpe, dst ):
     fd.write(json.dumps(fcpe))
     fd.close()
     print ("File writed")
+# ---------------------------------------------------
+def ShowCPEdata(field):
+    host = Config.get('MONGO', 'ip')
+    port = int(Config.get('MONGO', 'port'))
+    auxstr="cpe.{0}".format(field)
+    print ("[*] Connection to {0}:{1}").format(host, port)
+    client = pymongo.MongoClient(host, port)
+    print ("[*] Connected !!")
+    cpeddbb = client.LucienInventory
+    timestart = time.time()
+    data=cpeddbb.CPE.distinct(auxstr)
+    timeend = time.time()
+    print ("[*] Elapsed time getting {0}:[{1} sg]").format(auxstr, timeend - timestart)
+    print ("[*] Extraction done !!!")
+    return data
 #---------------------------------------------------
 
 if __name__ == '__main__':
@@ -126,5 +141,10 @@ if __name__ == '__main__':
             ALLDATA = json.loads(fd.read())
             fd.close()
             insertLOADCPE(SRC,ALLDATA)
-    print
+    elif args.listVENDOR:
+        ALLDATA=ShowCPEdata("vendor")
+        print ALLDATA
+    elif args.listPRODUCT:
+        ALLDATA=ShowCPEdata("product")
+        print ALLDATA
     print "eof\n"
