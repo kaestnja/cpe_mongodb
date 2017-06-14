@@ -30,7 +30,9 @@ parser.add_argument('--listCPE', "-e", action='store_true', help='Show distinct 
 parser.add_argument('--operativesystem', "-o", action='store_true', help='Show distinct CPE')
 parser.add_argument('--application', "-a", action='store_true', help='Show distinct CPE')
 parser.add_argument('--hardware', "-w", action='store_true', help='Show distinct CPE')
+parser.add_argument('--banner', "-b", type=str, help='String to analyze')
 parser.add_argument('--name', "-m", type=str, help='String to analyze')
+
 
 parser.add_argument('--verbose', "-v", action='store_true', help='Verbose')
 
@@ -108,6 +110,7 @@ def insertLOADCPE(src, fcpe):
     cpeddbb = client.LucienInventory
     timestart = time.time()
     cpeddbb.CPE.insert_many(ALLDATA).inserted_ids
+    cpeddbb.CPE.createIndex({'title': "text"})
     timeend = time.time()
     print ("[*] Elapsed time in load:[{0} sg]").format(timeend - timestart)
     print ("[*] Insertion done !!!")
@@ -138,6 +141,24 @@ def ShowDISTINCTdata(field):
     print ("[*] Elapsed time getting {0}:[{1} sg]").format(field, timeend - timestart)
     print ("[*] Extraction done !!!")
     return data
+# ---------------------------------------------------
+
+def GetDataWithName (field):
+    host = Config.get('MONGO', 'ip')
+    port = int(Config.get('MONGO', 'port'))
+    print ("[*] Connection to {0}:{1}").format(host, port)
+    client = pymongo.MongoClient(host, port)
+    print ("[*] Connected !!")
+    cpeddbb = client.LucienInventory
+    timestart = time.time()
+    data = cpeddbb.CPE.find({ "$text": { "$search": field } },{"title": 1, "name": 1, "_id": 0} )
+    aux = {}
+    for i in data:
+        aux.update({i['name']: i['title']})
+    timeend = time.time()
+    print ("[*] Elapsed time getting {0}:[{1} sg]").format(field, timeend - timestart)
+    print ("[*] Extraction done !!!")
+    return aux
 
 
 # ---------------------------------------------------
@@ -191,7 +212,6 @@ def analyzeWord(word, rdata, first):
     for auxword in rdata:
         value = fuzz.ratio(word, auxword)
         if value == 100:
-            print "[{0}]->[{1}]:{2}".format(word, auxword, value)
             find = True
             result.append((auxword, value, 0))
             break
@@ -213,7 +233,7 @@ def analyzeValues(rdata, adata):
             result = analyzeWord(name.lower(), rdata, True)
             Ffind = lambda (x, y, z): y > 1 or z > 1
             find = Ffind(result[0])
-            print "{0}->{1}:[{2}]".format(name, result[0][0], find)
+            print "{0}\t{1}\t{2}".format(name, result[0][0], find)
 
 
 # ---------------------------------------------------
@@ -231,6 +251,7 @@ def fsplit(text):
 
 
 # ----------------------------------------------------------------------
+
 def _fsplit(text):
     splitters = [" ", "/", "-", "..", ",", ";"]
 
@@ -244,6 +265,14 @@ def _fsplit(text):
                     results.extend(_fsplit(sp))
     return results
 
+# ----------------------------------------------------------------------
+
+def search_cpe( field ):
+    data= GetDataWithName(field)
+    for k in data:
+        print "{0}\t{1}".format(data[k],k)
+
+# ----------------------------------------------------------------------
 
 def search_cpe_cr0hn(search_term, results_number=1):
     # https://github.com/cr0hn/info2cpe
@@ -387,7 +416,7 @@ if __name__ == '__main__':
             sproduct = df.read()
             df.close()
             analyzeValues(product, sproduct)
-    elif args.name:
+    elif args.banner:
         start_time = time.time()
         results = search_cpe_cr0hn(args.name, 3)
         stop_time = time.time()
@@ -403,4 +432,8 @@ if __name__ == '__main__':
             print "   | Probability: %s%%" % prob
             print "   |____"
             print
+    elif args.name:
+        start_time = time.time()
+        results = search_cpe(args.name)
+        stop_time = time.time()
     print "eof\n"
