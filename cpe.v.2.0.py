@@ -30,9 +30,10 @@ parser.add_argument('--listCPE', "-e", action='store_true', help='Show distinct 
 parser.add_argument('--operativesystem', "-o", action='store_true', help='Show distinct CPE')
 parser.add_argument('--application', "-a", action='store_true', help='Show distinct CPE')
 parser.add_argument('--hardware', "-w", action='store_true', help='Show distinct CPE')
-parser.add_argument('--banner', "-b", type=str, help='String to analyze')
+parser.add_argument('--banner', "-b", type=str, help='String to analyze, cr0hn\'s Method')
 parser.add_argument('--name', "-m", type=str, help='String to analyze')
-
+parser.add_argument('--nameCHCK', "-k", action='store_true', help='String to analyze')
+parser.add_argument('--checkWTF', "-wtf", type=str, help='String to analyze')
 
 parser.add_argument('--verbose', "-v", action='store_true', help='Verbose')
 
@@ -110,7 +111,8 @@ def insertLOADCPE(src, fcpe):
     cpeddbb = client.LucienInventory
     timestart = time.time()
     cpeddbb.CPE.insert_many(ALLDATA).inserted_ids
-    cpeddbb.CPE.createIndex({'title': "text"})
+
+    cpeddbb.CPE.create_index([('title', pymongo.TEXT)], name='title', default_language='english')
     timeend = time.time()
     print ("[*] Elapsed time in load:[{0} sg]").format(timeend - timestart)
     print ("[*] Insertion done !!!")
@@ -242,9 +244,75 @@ def printall(ALLDATA):
     for i in (ALLDATA):
         print i.encode("ascii")
 
+# ---------------------------------------------------
+
+def anotherSearch ( field, data, results_number):
+    from fuzzywuzzy import fuzz
+    from fuzzywuzzy import process
+    aux={}
+    result = []
+    mR=4
+    mP=2
+    mS=4
+    for k in data:
+        value_ratio = fuzz.ratio(field, data[k])
+        value_part = fuzz.partial_ratio(field, data[k])
+        value_sort = fuzz.token_sort_ratio(field, data[k])
+        #aux[k]=str(int((value_part* + value_ratio + value_sort) / 3))+":"+str(value_ratio)
+        aux[k] = int((value_part*mP + value_ratio*mR + value_sort*mS) / (mR+mP+mS))
+    sorted_results = sorted(aux.iteritems(), key=lambda (k, v): v, reverse=True)
+    results_number = results_number if len(sorted_results) >= results_number else len(sorted_results)
+    for x, y in sorted_results[:results_number]:  # By value
+        result.append((y, x))
+
+    return result
 
 # ---------------------------------------------------
 
+def search_cpe( field, chck ):
+    timestart = time.time()
+    data= GetDataWithName(field)
+    if not chck:
+        for k in data:
+            print "{0}\t{1}".format(data[k],k)
+    else:
+        dataAUX = anotherSearch ( field, data, 3)
+        print "   |----"
+        print "   | String searched : {0}".format(field)
+        print "   |----"
+        for prob, cpe in dataAUX:
+            #(prob,value)=re.split(':',prob)
+            print "   |----"
+            print "   | CPE: %s" % cpe
+            print "   | Title: %s" % data[cpe]
+            print "   | Probability: %s%%" % prob
+            #print "   | Value: %s%%" % value
+            print "   |____"
+            print
+    timeend = time.time()
+    print ("[*] Elapsed time analyzing {0}:[{1} sg]").format('Elements', timeend - timestart)
+    print ("[*] analysis done !!!")
+# ----------------------------------------------------------------------
+
+def analyzeValues (file):
+    timestart = time.time()
+    for name in re.split("\n", file):
+        if name.isalnum():
+            data = GetDataWithName( name )
+            result = anotherSearch ( name, data, 3)
+            print "   |----"
+            print "   | String searched : {0}".format(name)
+            print "   |----"
+            for prob, cpe in result:
+                print "   |----"
+                print "   | CPE: %s" % cpe
+                print "   | Title: %s" % data[cpe]
+                print "   | Probability: %s%%" % prob
+                print "   |____"
+                print
+    timeend = time.time()
+    print ("[*] Elapsed time analyzing {0}:[{1} sg]").format('Elements', timeend - timestart)
+    print ("[*] analysis done !!!")
 # ----------------------------------------------------------------------
 def fsplit(text):
     return set(_fsplit(text))
@@ -264,13 +332,6 @@ def _fsplit(text):
                 for sp in text.split(spliter):
                     results.extend(_fsplit(sp))
     return results
-
-# ----------------------------------------------------------------------
-
-def search_cpe( field ):
-    data= GetDataWithName(field)
-    for k in data:
-        print "{0}\t{1}".format(data[k],k)
 
 # ----------------------------------------------------------------------
 
@@ -433,7 +494,14 @@ if __name__ == '__main__':
             print "   |____"
             print
     elif args.name:
-        start_time = time.time()
-        results = search_cpe(args.name)
-        stop_time = time.time()
+        results = search_cpe(args.name, args.nameCHCK)
+    elif args.checkWTF:
+        if not os.path.exists(args.checkWTF):
+            print ("[*] [*]  {0} file not found").format(args.checkWTF)
+            exit(0)
+        else:
+            df = open(args.checkWTF)
+            sproduct = df.read()
+            df.close()
+            analyzeValues(sproduct)
     print "eof\n"
