@@ -258,6 +258,7 @@ def anotherSearch ( field, data, results_number):
         value_ratio = fuzz.ratio(field, data[k])
         value_part = fuzz.partial_ratio(field, data[k])
         value_sort = fuzz.token_sort_ratio(field, data[k])
+        #aux[k]=str(int((value_part* + value_ratio + value_sort) / 3))+":"+str(value_ratio)
         aux[k] = int((value_part*mP + value_ratio*mR + value_sort*mS) / (mR+mP+mS))
     sorted_results = sorted(aux.iteritems(), key=lambda (k, v): v, reverse=True)
     results_number = results_number if len(sorted_results) >= results_number else len(sorted_results)
